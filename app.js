@@ -10,6 +10,8 @@ const state = {
     showAQIMarkers: localStorage.getItem('showAQIMarkers') !== 'false'
 };
 
+const OPENWEATHER_API_KEY = '4c08b9f14e0cf7416bd22c239b210801';
+
 let mainMap, modalMap, hourlyChartInstance;
 const dom = {
     searchInput: document.getElementById('city-search'),
@@ -114,6 +116,68 @@ function setupEventListeners() {
     document.getElementById('share-btn').addEventListener('click', shareData);
 
     document.getElementById('clear-favorites-btn').addEventListener('click', clearFavorites);
+    
+    setupMapLayerControls();
+}
+
+function setupMapLayerControls() {
+    let activeLayer = null;
+    let layerOverlay = null;
+    
+    document.querySelectorAll('.map-layer-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const layer = btn.dataset.layer;
+            
+            document.querySelectorAll('.map-layer-btn').forEach(b => b.classList.remove('active'));
+            
+            if (activeLayer === layer) {
+                activeLayer = null;
+                if (layerOverlay) {
+                    mainMap.removeLayer(layerOverlay);
+                    layerOverlay = null;
+                }
+            } else {
+                btn.classList.add('active');
+                activeLayer = layer;
+                renderMapLayer(layer);
+            }
+        });
+    });
+    
+    function renderMapLayer(layer) {
+        if (layerOverlay) {
+            mainMap.removeLayer(layerOverlay);
+        }
+        
+        let tileUrl = '';
+        
+        switch(layer) {
+            case 'temp':
+                tileUrl = `https://tile.openweathermap.org/map/temp_new/{z}/{x}/{y}.png?appid=${OPENWEATHER_API_KEY}`;
+                break;
+            case 'wind':
+                tileUrl = `https://tile.openweathermap.org/map/wind_new/{z}/{x}/{y}.png?appid=${OPENWEATHER_API_KEY}`;
+                break;
+            case 'clouds':
+                tileUrl = `https://tile.openweathermap.org/map/clouds_new/{z}/{x}/{y}.png?appid=${OPENWEATHER_API_KEY}`;
+                break;
+            case 'precipitation':
+                tileUrl = `https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=${OPENWEATHER_API_KEY}`;
+                break;
+        }
+        
+        if (tileUrl && mainMap) {
+            layerOverlay = L.tileLayer(tileUrl, {
+                opacity: 0.7,
+                attribution: 'Weather data © OpenWeatherMap'
+            });
+            layerOverlay.addTo(mainMap);
+            
+            setTimeout(() => {
+                showToast(`${layer.charAt(0).toUpperCase() + layer.slice(1)} layer activated`);
+            }, 500);
+        }
+    }
 }
 
 async function fetchWeather(lat, lon, cityName, countryCode, isCompare = false) {
@@ -247,6 +311,7 @@ function updateDashboard(data) {
     document.getElementById('weather-icon-container').innerHTML = `<i data-lucide="${wInfo.icon}" class="w-24 h-24 ${wInfo.color}"></i>`;
 
     updateWeatherEffects(current.weather_code);
+    checkWeatherAlerts(current, daily, hourly);
 
     document.body.className = 'h-screen flex overflow-hidden';
     document.body.classList.add(wInfo.bgClass);
@@ -447,9 +512,7 @@ function detectLocation() {
 
 function initMaps() {
     mainMap = L.map('map', { zoomControl: false, attributionControl: false }).setView([state.lat, state.lon], 10);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        className: 'dark-map-tiles'
-    }).addTo(mainMap);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(mainMap);
 
     modalMap = L.map('country-map-mini', { zoomControl: false, attributionControl: false, dragging: false }).setView([0,0], 1);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(modalMap);
@@ -956,6 +1019,121 @@ function getMoonPhase(date) {
 
     const phases = ["New Moon", "Waxing Crescent", "First Quarter", "Waxing Gibbous", "Full Moon", "Waning Gibbous", "Last Quarter", "Waning Crescent"];
     return { phase: phases[b], illumination: Math.round(jd * 100) };
+}
+
+function checkWeatherAlerts(current, daily, hourly) {
+    const alerts = [];
+    const temp = convertTemp(current.temperature_2m);
+    const windSpeed = current.wind_speed_10m;
+    const uvIndex = daily.uv_index_max[0];
+    
+    if (temp > 35) {
+        alerts.push({
+            type: 'critical',
+            icon: 'thermometer-sun',
+            title: 'Extreme Heat Warning',
+            message: `Temperature at ${Math.round(temp)}°${state.unit === 'metric' ? 'C' : 'F'}. Stay hydrated and avoid prolonged sun exposure.`,
+            action: 'View Safety Tips'
+        });
+    } else if (temp < 0) {
+        alerts.push({
+            type: 'critical',
+            icon: 'thermometer-snowflake',
+            title: 'Freezing Temperature Alert',
+            message: `Temperature at ${Math.round(temp)}°${state.unit === 'metric' ? 'C' : 'F'}. Watch for ice and dress warmly.`,
+            action: 'Winter Safety'
+        });
+    }
+    
+    if (windSpeed > 50) {
+        alerts.push({
+            type: 'critical',
+            icon: 'wind',
+            title: 'High Wind Warning',
+            message: `Wind speeds reaching ${Math.round(windSpeed)} km/h. Secure loose objects and avoid outdoor activities.`,
+            action: 'Wind Safety'
+        });
+    } else if (windSpeed > 30) {
+        alerts.push({
+            type: 'warning',
+            icon: 'wind',
+            title: 'Windy Conditions',
+            message: `Moderate winds at ${Math.round(windSpeed)} km/h. Exercise caution outdoors.`,
+            action: 'More Info'
+        });
+    }
+    
+    if (uvIndex >= 8) {
+        alerts.push({
+            type: 'warning',
+            icon: 'sun',
+            title: 'Very High UV Index',
+            message: `UV Index at ${uvIndex}. Use sunscreen SPF 30+ and seek shade during midday.`,
+            action: 'UV Protection'
+        });
+    }
+    
+    const maxPrecip = Math.max(...hourly.precipitation_probability.slice(0, 24));
+    if (maxPrecip > 70) {
+        alerts.push({
+            type: 'info',
+            icon: 'cloud-rain',
+            title: 'Rain Expected',
+            message: `${maxPrecip}% chance of precipitation in the next 24 hours. Carry an umbrella.`,
+            action: 'Hourly Forecast'
+        });
+    }
+    
+    renderWeatherAlerts(alerts);
+}
+
+function renderWeatherAlerts(alerts) {
+    const container = document.getElementById('weather-alerts-container');
+    
+    if (alerts.length === 0) {
+        container.classList.add('hidden');
+        container.innerHTML = '';
+        return;
+    }
+    
+    container.classList.remove('hidden');
+    
+    const alertColors = {
+        critical: { bg: 'bg-red-500/20', border: 'border-red-500', text: 'text-red-400', icon: 'text-red-400', anim: 'alert-critical' },
+        warning: { bg: 'bg-yellow-500/20', border: 'border-yellow-500', text: 'text-yellow-400', icon: 'text-yellow-400', anim: 'alert-warning' },
+        info: { bg: 'bg-blue-500/20', border: 'border-blue-500', text: 'text-blue-400', icon: 'text-blue-400', anim: '' }
+    };
+    
+    container.innerHTML = alerts.map((alert, i) => {
+        const colors = alertColors[alert.type];
+        return `
+            <div class="glass-card ${colors.bg} border-2 ${colors.border} rounded-2xl p-4 flex items-start gap-4 alert-slide-in ${colors.anim}" style="animation-delay: ${i * 0.1}s">
+                <div class="${colors.icon} flex-shrink-0 mt-1">
+                    <i data-lucide="${alert.icon}" class="w-6 h-6"></i>
+                </div>
+                <div class="flex-1">
+                    <div class="flex items-center justify-between mb-1">
+                        <h3 class="font-bold ${colors.text}">${alert.title}</h3>
+                        <button class="text-xs ${colors.text} hover:underline font-medium">${alert.action}</button>
+                    </div>
+                    <p class="text-sm text-gray-300">${alert.message}</p>
+                </div>
+                <button class="alert-dismiss flex-shrink-0 text-gray-400 hover:text-white transition-colors" data-index="${i}">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+        `;
+    }).join('');
+    
+    lucide.createIcons();
+    
+    container.querySelectorAll('.alert-dismiss').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const alertEl = e.target.closest('.glass-card');
+            alertEl.style.animation = 'fadeIn 0.3s ease reverse';
+            setTimeout(() => alertEl.remove(), 300);
+        });
+    });
 }
 
 const journalState = {
