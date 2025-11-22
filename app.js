@@ -1207,14 +1207,6 @@ function renderJournalEntries() {
 
     empty.classList.add('hidden');
 
-    const comfortEmoji = {
-        '1': '😫',
-        '2': '🥶',
-        '3': '👌',
-        '4': '🥵',
-        '5': '😰'
-    };
-
     const comfortLabels = {
         '1': 'Too Cold',
         '2': 'Cold',
@@ -1233,7 +1225,6 @@ function renderJournalEntries() {
                         <div class="text-sm text-gray-400">${date.toLocaleDateString()} ${date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</div>
                         <div class="font-semibold">${entry.city}</div>
                     </div>
-                    <div class="text-3xl">${comfortEmoji[entry.comfort]}</div>
                 </div>
                 <div class="flex gap-2 mb-2 text-sm">
                     <span class="bg-blue-500/20 px-2 py-1 rounded">${temp}</span>
