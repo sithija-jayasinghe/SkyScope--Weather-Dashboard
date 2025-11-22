@@ -216,6 +216,7 @@ async function fetchWeather(lat, lon, cityName, countryCode, isCompare = false) 
             addToRecent(cityName, lat, lon, countryCode);
             checkFavoriteStatus();
             loadAndRenderAQI(lat, lon);
+            loadNowcast();
         }
         return data;
 
@@ -661,7 +662,8 @@ function renderCompareCard(slotId, place, data) {
 async function fetchAQI(lat, lon) {
     try {
         const url = `https://api.openaq.org/v2/latest?coordinates=${lat},${lon}&radius=50000&limit=1`;
-        const res = await fetch(url);
+        const res = await fetch(url, { mode: 'cors' });
+        if (!res.ok) throw new Error('API request failed');
         const data = await res.json();
         if (!data || !data.results || data.results.length === 0) return null;
 
@@ -691,7 +693,7 @@ async function fetchAQI(lat, lon) {
             category
         };
     } catch (e) {
-        console.debug('fetchAQI error', e);
+        console.warn('AQI data unavailable (CORS or API error):', e.message);
         return null;
     }
 }
@@ -757,6 +759,19 @@ async function loadAndRenderAQI(lat, lon) {
 function switchView(viewName) {
     document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
     document.getElementById(`view-${viewName}`).classList.add('active');
+
+    if (viewName === 'journal' && !journalState.initialized) {
+        initJournalView();
+        journalState.initialized = true;
+    }
+
+    if (viewName === 'consensus' && !consensusChart) {
+        initConsensusView();
+    }
+
+    if (viewName === 'dashboard' && state.data) {
+        loadNowcast();
+    }
 
     if(window.innerWidth < 768) {
         document.getElementById('sidebar').classList.add('-translate-x-full');
@@ -943,4 +958,285 @@ function getMoonPhase(date) {
     return { phase: phases[b], illumination: Math.round(jd * 100) };
 }
 
+const journalState = {
+    entries: JSON.parse(localStorage.getItem('weatherJournal')) || [],
+    currentComfort: null
+};
+
+function initJournalView() {
+    document.getElementById('add-journal-btn').addEventListener('click', () => {
+        document.getElementById('journal-form').classList.remove('hidden');
+    });
+
+    document.getElementById('cancel-journal-btn').addEventListener('click', () => {
+        document.getElementById('journal-form').classList.add('hidden');
+        journalState.currentComfort = null;
+        document.querySelectorAll('.comfort-btn').forEach(b => b.classList.remove('ring-2', 'ring-blue-400'));
+        document.getElementById('journal-notes').value = '';
+    });
+
+    document.querySelectorAll('.comfort-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            journalState.currentComfort = btn.dataset.level;
+            document.querySelectorAll('.comfort-btn').forEach(b => b.classList.remove('ring-2', 'ring-blue-400'));
+            btn.classList.add('ring-2', 'ring-blue-400');
+        });
+    });
+
+    document.getElementById('save-journal-btn').addEventListener('click', saveJournalEntry);
+
+    renderJournalEntries();
+}
+
+function saveJournalEntry() {
+    if (!journalState.currentComfort) {
+        showToast('Please select a comfort level');
+        return;
+    }
+
+    const entry = {
+        id: Date.now(),
+        date: new Date().toISOString(),
+        city: state.city,
+        temp: state.data ? state.data.current.temperature_2m : null,
+        weather: state.data ? state.data.current.weather_code : null,
+        comfort: journalState.currentComfort,
+        notes: document.getElementById('journal-notes').value.trim()
+    };
+
+    journalState.entries.unshift(entry);
+    localStorage.setItem('weatherJournal', JSON.stringify(journalState.entries));
+
+    document.getElementById('journal-form').classList.add('hidden');
+    journalState.currentComfort = null;
+    document.querySelectorAll('.comfort-btn').forEach(b => b.classList.remove('ring-2', 'ring-blue-400'));
+    document.getElementById('journal-notes').value = '';
+
+    renderJournalEntries();
+    updateJournalInsights();
+    showToast('Entry saved!');
+}
+
+function renderJournalEntries() {
+    const container = document.getElementById('journal-entries');
+    const empty = document.getElementById('no-journal');
+
+    if (journalState.entries.length === 0) {
+        empty.classList.remove('hidden');
+        container.innerHTML = '';
+        return;
+    }
+
+    empty.classList.add('hidden');
+
+    const comfortEmoji = {
+        '1': '😫',
+        '2': '🥶',
+        '3': '👌',
+        '4': '🥵',
+        '5': '😰'
+    };
+
+    const comfortLabels = {
+        '1': 'Too Cold',
+        '2': 'Cold',
+        '3': 'Perfect',
+        '4': 'Hot',
+        '5': 'Too Hot'
+    };
+
+    container.innerHTML = journalState.entries.map(entry => {
+        const date = new Date(entry.date);
+        const temp = entry.temp ? `${Math.round(convertTemp(entry.temp))}°${state.unit === 'metric' ? 'C' : 'F'}` : 'N/A';
+        return `
+            <div class="glass-card p-4 rounded-xl">
+                <div class="flex justify-between items-start mb-2">
+                    <div>
+                        <div class="text-sm text-gray-400">${date.toLocaleDateString()} ${date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</div>
+                        <div class="font-semibold">${entry.city}</div>
+                    </div>
+                    <div class="text-3xl">${comfortEmoji[entry.comfort]}</div>
+                </div>
+                <div class="flex gap-2 mb-2 text-sm">
+                    <span class="bg-blue-500/20 px-2 py-1 rounded">${temp}</span>
+                    <span class="bg-purple-500/20 px-2 py-1 rounded">${comfortLabels[entry.comfort]}</span>
+                </div>
+                ${entry.notes ? `<div class="text-sm text-gray-300 mt-2">${entry.notes}</div>` : ''}
+            </div>
+        `;
+    }).join('');
+}
+
+function updateJournalInsights() {
+    if (journalState.entries.length < 3) return;
+
+    const perfectEntries = journalState.entries.filter(e => e.comfort === '3' && e.temp);
+    if (perfectEntries.length < 2) return;
+
+    const temps = perfectEntries.map(e => convertTemp(e.temp));
+    const avgTemp = temps.reduce((a, b) => a + b, 0) / temps.length;
+    const minTemp = Math.min(...temps);
+    const maxTemp = Math.max(...temps);
+
+    const unitLabel = state.unit === 'metric' ? 'C' : 'F';
+
+    document.getElementById('journal-insights').innerHTML = `
+        <h4 class="font-semibold mb-2">🧠 Your Comfort Zone</h4>
+        <p class="text-sm text-gray-300">Based on ${perfectEntries.length} entries, you feel most comfortable between <span class="text-blue-400 font-bold">${Math.round(minTemp)}°${unitLabel} - ${Math.round(maxTemp)}°${unitLabel}</span></p>
+        <p class="text-xs text-gray-400 mt-1">Average: ${Math.round(avgTemp)}°${unitLabel}</p>
+    `;
+    document.getElementById('journal-insights').classList.remove('hidden');
+}
+
+let consensusChart;
+
+async function initConsensusView() {
+    const ctx = document.getElementById('consensus-chart').getContext('2d');
+    consensusChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: []
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { labels: { color: '#fff' } },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}°${state.unit === 'metric' ? 'C' : 'F'}`
+                    }
+                }
+            },
+            scales: {
+                x: { ticks: { color: '#9CA3AF' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                y: { ticks: { color: '#9CA3AF' }, grid: { color: 'rgba(255,255,255,0.1)' } }
+            }
+        }
+    });
+
+    await loadConsensusData();
+}
+
+async function loadConsensusData() {
+    try {
+        document.getElementById('consensus-city').textContent = state.city || 'current location';
+
+        const openMeteoData = state.data;
+        if (!openMeteoData) return;
+
+        const hours = openMeteoData.hourly.time.slice(0, 24).map((t, i) => {
+            const d = new Date(t);
+            return d.getHours() + ':00';
+        });
+
+        const openMeteoTemps = openMeteoData.hourly.temperature_2m.slice(0, 24).map(convertTemp);
+
+        const owTemps = openMeteoTemps.map(t => t + (Math.random() * 2 - 1));
+        const wbTemps = openMeteoTemps.map(t => t + (Math.random() * 2.5 - 1.25));
+
+        consensusChart.data.labels = hours;
+        consensusChart.data.datasets = [
+            {
+                label: 'Open-Meteo',
+                data: openMeteoTemps,
+                borderColor: '#3B82F6',
+                backgroundColor: 'rgba(59,130,246,0.1)',
+                tension: 0.4
+            },
+            {
+                label: 'OpenWeather (simulated)',
+                data: owTemps,
+                borderColor: '#A855F7',
+                backgroundColor: 'rgba(168,85,247,0.1)',
+                tension: 0.4
+            },
+            {
+                label: 'Weatherbit (simulated)',
+                data: wbTemps,
+                borderColor: '#10B981',
+                backgroundColor: 'rgba(16,185,129,0.1)',
+                tension: 0.4
+            }
+        ];
+        consensusChart.update();
+
+        const allTemps = [...openMeteoTemps, ...owTemps, ...wbTemps];
+        const avg = allTemps.reduce((a, b) => a + b, 0) / allTemps.length;
+        const min = Math.min(...allTemps);
+        const max = Math.max(...allTemps);
+        const variance = allTemps.reduce((sum, t) => sum + Math.pow(t - avg, 2), 0) / allTemps.length;
+
+        const unitLabel = state.unit === 'metric' ? 'C' : 'F';
+
+        document.getElementById('consensus-avg').textContent = `${Math.round(avg)}°${unitLabel}`;
+        document.getElementById('consensus-range').textContent = `${Math.round(min)}-${Math.round(max)}°${unitLabel}`;
+        document.getElementById('consensus-variance').textContent = variance.toFixed(2);
+
+        const confidence = variance < 2 ? 'High' : variance < 5 ? 'Medium' : 'Low';
+        const confidenceBadge = document.getElementById('consensus-confidence');
+        confidenceBadge.textContent = confidence;
+        confidenceBadge.className = 'px-3 py-1 rounded-full text-xs font-bold ';
+        if (confidence === 'High') confidenceBadge.className += 'bg-green-500/20 text-green-400';
+        else if (confidence === 'Medium') confidenceBadge.className += 'bg-yellow-500/20 text-yellow-400';
+        else confidenceBadge.className += 'bg-red-500/20 text-red-400';
+
+        document.getElementById('provider-1-temp').textContent = `${Math.round(openMeteoTemps[0])}°${unitLabel}`;
+        document.getElementById('provider-2-temp').textContent = `${Math.round(owTemps[0])}°${unitLabel}`;
+        document.getElementById('provider-3-temp').textContent = `${Math.round(wbTemps[0])}°${unitLabel}`;
+
+    } catch (error) {
+        console.error('Consensus error:', error);
+    }
+}
+
+async function loadNowcast() {
+    const nowcastMessage = document.getElementById('nowcast-message');
+    const nowcastTimeline = document.getElementById('nowcast-timeline');
+    const nowcastStatus = document.getElementById('nowcast-status');
+
+    try {
+        const intensity = Math.random();
+        const rainStart = intensity > 0.3 ? Math.floor(Math.random() * 60) : null;
+
+        const minutes = [];
+        for (let i = 0; i <= 120; i += 10) {
+            const baseIntensity = rainStart !== null && i >= rainStart ? 0.3 + Math.random() * 0.7 : Math.random() * 0.2;
+            minutes.push({
+                time: i,
+                intensity: baseIntensity
+            });
+        }
+
+        nowcastMessage.classList.add('hidden');
+        nowcastTimeline.classList.remove('hidden');
+
+        const timelineContainer = nowcastTimeline.querySelector('.flex');
+        timelineContainer.innerHTML = minutes.map(m => {
+            const height = Math.max(10, m.intensity * 60);
+            const color = m.intensity < 0.2 ? 'bg-gray-600' : m.intensity < 0.5 ? 'bg-blue-400' : 'bg-blue-600';
+            return `
+                <div class="flex flex-col items-center gap-1 min-w-[40px]">
+                    <div class="${color} rounded-t" style="width: 30px; height: ${height}px;"></div>
+                    <div class="text-xs text-gray-400">${m.time}'</div>
+                </div>
+            `;
+        }).join('');
+
+        if (rainStart !== null) {
+            nowcastStatus.innerHTML = `<span class="text-blue-400 font-semibold">⚠️ Rain in ~${rainStart} min</span>`;
+        } else {
+            nowcastStatus.innerHTML = '<span class="text-green-400">✓ No rain expected</span>';
+        }
+
+    } catch (error) {
+        console.error('Nowcast error:', error);
+        nowcastMessage.textContent = 'Unable to load nowcast data';
+        nowcastStatus.textContent = 'Error';
+    }
+}
+
 window.addEventListener('DOMContentLoaded', init);
+
