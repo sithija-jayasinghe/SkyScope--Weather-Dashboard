@@ -8,8 +8,7 @@
 
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
@@ -18,303 +17,384 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 
-<body class="h-screen flex overflow-hidden selection:bg-blue-500 selection:text-white weather-transition">
-    <div id="weather-effects" class="fixed inset-0 pointer-events-none z-[5]"></div>
-    <div id="alerts-container" class="fixed top-4 right-4 z-[70] flex flex-col gap-3 max-w-md"></div>
+<body class="h-screen flex overflow-hidden selection:bg-blue-500 selection:text-white">
 
-    <aside class="w-20 hidden md:flex flex-col items-center py-8 gap-8 bg-gray-900 border-r border-gray-800 z-20">
-        <div class="p-3 bg-blue-600 rounded-xl shadow-lg shadow-blue-500/20">
-            <i data-lucide="cloud-rain" class="w-6 h-6 text-white"></i>
-        </div>
+<!-- Weather Effects Container -->
+<div id="weather-effects"></div>
 
-        <nav class="flex flex-col gap-6 mt-4 w-full items-center">
-            <button class="p-3 rounded-xl text-blue-400 bg-gray-800 transition-colors relative group">
-                <i data-lucide="layout-grid" class="w-6 h-6"></i>
-                <span
-                    class="absolute left-14 bg-gray-800 px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap border border-gray-700">Dashboard</span>
-            </button>
-            <button class="p-3 rounded-xl text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors">
-                <i data-lucide="map" class="w-6 h-6"></i>
-            </button>
-            <button class="p-3 rounded-xl text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors">
-                <i data-lucide="calendar" class="w-6 h-6"></i>
-            </button>
-        </nav>
+<!-- Toast Container -->
+<div id="toast-container" class="fixed bottom-6 right-6 z-[100] flex flex-col gap-3"></div>
 
-        <div class="mt-auto">
-            <button class="p-3 rounded-xl text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors">
-                <i data-lucide="settings" class="w-6 h-6"></i>
-            </button>
-        </div>
-    </aside>
+<!-- Mobile Menu Button -->
+<button id="mobile-menu-btn" class="md:hidden fixed top-4 left-4 z-50 p-2 glass-card rounded-lg text-white">
+    <i data-lucide="menu" class="w-6 h-6"></i>
+</button>
 
-    <main class="flex-1 flex flex-col h-full relative overflow-hidden">
-        <header class="p-6 flex items-center justify-between z-10">
-            <div class="relative w-full max-w-md">
-                <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5"></i>
-                <input type="text" id="city-search" placeholder="Search for cities..."
-                    class="w-full bg-gray-800/50 border border-gray-700 text-white pl-12 pr-4 py-3 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-500 transition-all">
-                <div id="search-loader" class="hidden absolute right-4 top-1/2 -translate-y-1/2">
-                    <div class="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+<!-- Sidebar -->
+<aside id="sidebar" class="w-20 md:flex flex-col items-center py-6 gap-6 bg-gray-900 z-40 fixed md:relative top-0 left-0 h-full transition-transform duration-300 -translate-x-full md:translate-x-0 border-r border-gray-800">
+    <div class="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg shadow-blue-500/30">
+        <i data-lucide="cloud-rain" class="w-6 h-6 text-white"></i>
+    </div>
+    <nav class="flex flex-col gap-4 mt-4 w-full items-center">
+        <button data-view="dashboard" class="nav-btn p-3 rounded-xl text-blue-400 bg-gray-800/50 transition-all hover:scale-105" title="Dashboard">
+            <i data-lucide="layout-grid" class="w-6 h-6"></i>
+        </button>
+        <button data-view="favorites" class="nav-btn p-3 rounded-xl text-gray-400 hover:text-white hover:bg-gray-800/50 transition-all hover:scale-105" title="Favorites">
+            <i data-lucide="star" class="w-6 h-6"></i>
+        </button>
+        <button data-view="compare" class="nav-btn p-3 rounded-xl text-gray-400 hover:text-white hover:bg-gray-800/50 transition-all hover:scale-105" title="Compare Cities">
+            <i data-lucide="git-compare" class="w-6 h-6"></i>
+        </button>
+    </nav>
+
+    <div class="mt-auto flex flex-col gap-4 mb-4">
+        <button id="unit-toggle" class="p-3 rounded-xl font-bold text-sm text-gray-400 hover:text-white hover:bg-gray-800/50 transition-all" title="Toggle Unit">°C</button>
+    </div>
+</aside>
+
+<!-- Main Content -->
+<main class="flex-1 flex flex-col h-full relative overflow-hidden">
+
+    <!-- Header -->
+    <header class="p-4 md:p-6 flex items-center justify-between z-10 gap-4">
+        <!-- Search Bar -->
+        <div class="relative w-full max-w-lg z-50">
+            <div class="relative group">
+                <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 group-focus-within:text-blue-400 transition-colors"></i>
+                <input type="text" id="city-search" placeholder="Search city (e.g., London, Tokyo)..."
+                       class="w-full bg-gray-800/50 backdrop-blur border border-gray-700 text-white pl-12 pr-24 py-3 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all shadow-lg">
+
+                <div class="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+                    <button id="voice-btn" class="p-2 hover:bg-white/10 rounded-lg transition-colors" title="Voice Search">
+                        <i data-lucide="mic" class="w-4 h-4 text-gray-400"></i>
+                    </button>
+                    <button id="location-btn" class="p-2 hover:bg-white/10 rounded-lg transition-colors" title="Use My Location">
+                        <i data-lucide="map-pin" class="w-4 h-4 text-gray-400"></i>
+                    </button>
                 </div>
             </div>
-        </header>
 
-        <div class="flex-1 overflow-y-auto p-6 pt-0 pb-8">
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
+            <!-- Search Suggestions Dropdown -->
+            <div id="search-suggestions" class="hidden absolute top-full left-0 right-0 mt-2 glass-card rounded-xl overflow-hidden max-h-60 overflow-y-auto shadow-2xl border border-gray-700/50"></div>
+        </div>
 
-                <div class="lg:col-span-1 flex flex-col gap-6">
+        <div class="flex gap-2">
+            <button id="export-btn" class="hidden md:flex items-center gap-2 px-4 py-2 glass-card rounded-xl hover:bg-white/10 transition-colors text-sm font-medium">
+                <i data-lucide="download" class="w-4 h-4"></i> Export
+            </button>
+            <button id="share-btn" class="p-3 glass-card rounded-xl hover:bg-white/10 transition-colors">
+                <i data-lucide="share-2" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </header>
 
-                    <div
-                        class="glass-card rounded-3xl p-8 relative overflow-hidden group h-80 flex flex-col justify-between">
-                        <div
-                            class="absolute top-0 right-0 w-64 h-64 bg-blue-500/20 rounded-full blur-3xl -mr-16 -mt-16">
+    <!-- Recent Searches Strip -->
+    <div id="recent-searches" class="px-6 pb-2 flex gap-2 overflow-x-auto no-scrollbar min-h-[40px]">
+        <!-- Populated by JS -->
+    </div>
+
+    <!-- VIEW: Dashboard -->
+    <div id="view-dashboard" class="view-section active flex-1 overflow-y-auto p-4 md:p-6 pt-2 pb-20 scroll-smooth">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 max-w-[1600px] mx-auto">
+
+            <!-- Left Col: Main Weather (4 cols) -->
+            <div class="lg:col-span-4 flex flex-col gap-6">
+                <!-- Main Card -->
+                <div class="glass-card rounded-3xl p-8 relative overflow-hidden group min-h-[380px] flex flex-col justify-between transition-all hover:shadow-blue-500/10 hover:shadow-2xl">
+                    <button id="fav-toggle-btn" class="absolute top-6 right-6 p-2 rounded-full hover:bg-white/10 transition-colors z-10">
+                        <i data-lucide="star" class="w-6 h-6 text-gray-400" id="fav-icon"></i>
+                    </button>
+
+                    <div class="absolute -top-20 -right-20 w-64 h-64 bg-blue-500/30 rounded-full blur-[80px] pointer-events-none"></div>
+
+                    <div>
+                        <div class="flex items-baseline gap-2">
+                            <h1 id="main-city" class="text-3xl md:text-4xl font-bold tracking-tight">Loading...</h1>
                         </div>
+                        <button id="country-trigger" class="flex items-center gap-1 text-blue-400 hover:text-blue-300 text-sm font-medium mt-1 transition-colors">
+                            <i data-lucide="map" class="w-3 h-3"></i>
+                            <span id="main-country">---</span>
+                        </button>
+                        <div id="main-date" class="text-gray-400 text-sm mt-2 font-mono">---</div>
+                    </div>
 
-                        <div class="relative z-10 flex justify-between items-start">
+                    <div class="flex flex-col items-center my-6">
+                        <div id="weather-icon-container" class="weather-icon-float mb-4 drop-shadow-2xl">
+                            <i data-lucide="cloud" class="w-24 h-24 text-gray-400"></i>
+                        </div>
+                        <div class="text-7xl font-bold tracking-tighter flex items-start ml-4">
+                            <span id="main-temp">--</span>
+                            <span class="text-4xl text-blue-400 mt-2">°</span>
+                        </div>
+                        <div id="weather-desc" class="text-lg text-gray-300 font-medium capitalize mt-2 px-4 py-1 rounded-full bg-white/5">--</div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-2 text-center border-t border-white/10 pt-4">
+                        <div>
+                            <div class="text-xs text-gray-400 mb-1">Wind</div>
+                            <div class="font-semibold"><span id="main-wind">--</span> <span class="text-xs text-gray-500 unit-speed">km/h</span></div>
+                        </div>
+                        <div class="border-l border-white/10">
+                            <div class="text-xs text-gray-400 mb-1">Humidity</div>
+                            <div class="font-semibold"><span id="main-humidity">--</span> <span class="text-xs text-gray-500">%</span></div>
+                        </div>
+                        <div class="border-l border-white/10">
+                            <div class="text-xs text-gray-400 mb-1">Feel</div>
+                            <div class="font-semibold"><span id="main-feel">--</span>°</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 7 Day List -->
+                <div class="glass-card rounded-3xl p-6 flex-1">
+                    <h3 class="text-sm font-bold uppercase tracking-wider text-gray-400 mb-4">7-Day Forecast</h3>
+                    <div id="forecast-list" class="flex flex-col gap-1">
+                        <!-- Generated Items -->
+                        <div class="p-3 rounded-xl bg-white/5 animate-pulse h-12"></div>
+                        <div class="p-3 rounded-xl bg-white/5 animate-pulse h-12"></div>
+                        <div class="p-3 rounded-xl bg-white/5 animate-pulse h-12"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Col: Charts & Highlights (8 cols) -->
+            <div class="lg:col-span-8 flex flex-col gap-6">
+
+                <!-- Hourly Chart & List Section -->
+                <div class="glass-card rounded-3xl p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold">Temperature Trend (24h)</h3>
+                        <div class="flex gap-2 text-xs font-medium">
+                            <span class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-blue-500"></div> Temp</span>
+                            <span class="flex items-center gap-1"><div class="w-2 h-2 rounded-full bg-purple-500"></div> Rain %</span>
+                        </div>
+                    </div>
+
+                    <!-- Chart -->
+                    <div class="h-[200px] w-full relative mb-6">
+                        <canvas id="hourlyChart"></canvas>
+                    </div>
+
+                    <!-- Hourly Horizontal List -->
+                    <div class="border-t border-white/10 pt-4">
+                        <h4 class="text-xs font-bold text-gray-400 uppercase mb-3">Hourly Forecast</h4>
+                        <div id="hourly-forecast-container" class="flex overflow-x-auto gap-3 no-scrollbar pb-2">
+                            <!-- JS Populated -->
+                            <div class="min-w-[80px] h-[100px] bg-white/5 animate-pulse rounded-xl"></div>
+                            <div class="min-w-[80px] h-[100px] bg-white/5 animate-pulse rounded-xl"></div>
+                            <div class="min-w-[80px] h-[100px] bg-white/5 animate-pulse rounded-xl"></div>
+                            <div class="min-w-[80px] h-[100px] bg-white/5 animate-pulse rounded-xl"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Highlights Grid -->
+                <div>
+                    <h3 class="text-xl font-bold mb-4">Today's Highlights</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
+                        <!-- UV Index -->
+                        <div class="glass-card p-5 rounded-2xl flex flex-col justify-between h-32">
+                            <div class="flex justify-between items-start">
+                                <span class="text-gray-400 text-xs font-bold uppercase">UV Index</span>
+                                <i data-lucide="sun" class="w-5 h-5 text-yellow-400"></i>
+                            </div>
                             <div>
-                                <h2 id="main-city" class="text-3xl font-bold text-white tracking-wide">Loading...</h2>
-                                <button id="main-country"
-                                    class="text-blue-400 hover:text-blue-300 text-sm font-medium mt-1 flex items-center gap-1 transition-colors cursor-pointer hover:underline">
-                                    <i data-lucide="map-pin" class="w-3 h-3"></i>
-                                    <span id="country-text">Detecting...</span>
-                                </button>
+                                <div class="text-2xl font-bold" id="uv-val">--</div>
+                                <div class="w-full bg-gray-700 h-1.5 rounded-full mt-2 overflow-hidden">
+                                    <div id="uv-bar" class="bg-gradient-to-r from-green-400 to-red-500 h-full rounded-full transition-all duration-1000" style="width: 0%"></div>
+                                </div>
                             </div>
-                            <div id="main-time" class="text-gray-400 text-sm font-mono">--:--</div>
                         </div>
 
-                        <div class="relative z-10 flex flex-col items-center justify-center my-4">
-                            <div id="weather-icon-container" class="mb-2 transform scale-125 weather-icon-animate">
-                                <i data-lucide="cloud" class="w-24 h-24 text-blue-400"></i>
+                        <!-- Sunrise/Sunset -->
+                        <div class="glass-card p-5 rounded-2xl h-32 flex flex-col justify-center gap-3">
+                            <div class="flex items-center gap-3">
+                                <div class="p-1.5 bg-yellow-500/20 rounded-lg"><i data-lucide="sunrise" class="w-5 h-5 text-yellow-400"></i></div>
+                                <div>
+                                    <div class="text-xs text-gray-400">Sunrise</div>
+                                    <div class="font-semibold text-sm" id="sunrise-val">--:--</div>
+                                </div>
                             </div>
-                            <div class="text-6xl font-bold text-white tracking-tighter">
-                                <span id="main-temp">--</span><span class="text-4xl align-top text-blue-400">°</span>
+                            <div class="flex items-center gap-3">
+                                <div class="p-1.5 bg-orange-500/20 rounded-lg"><i data-lucide="sunset" class="w-5 h-5 text-orange-400"></i></div>
+                                <div>
+                                    <div class="text-xs text-gray-400">Sunset</div>
+                                    <div class="font-semibold text-sm" id="sunset-val">--:--</div>
+                                </div>
                             </div>
-                            <div id="weather-desc" class="text-lg text-gray-300 font-medium mt-2 capitalize">--</div>
-                        </div>
-                    </div>
-
-                    <div class="glass-card rounded-3xl p-6 flex-1">
-                        <div class="flex justify-between items-center mb-6">
-                            <h3 class="text-gray-200 font-semibold">7-Day Forecast</h3>
-                            <button
-                                class="px-3 py-1 text-xs bg-gray-700/50 rounded-full text-gray-300 hover:bg-gray-700">Weekly</button>
                         </div>
 
-                        <div id="forecast-list" class="flex flex-col gap-4">
-                            <div class="flex items-center justify-between p-2 animate-pulse">
-                                <div class="h-4 bg-gray-700 rounded w-12"></div>
-                                <div class="h-8 w-8 bg-gray-700 rounded-full"></div>
-                                <div class="h-4 bg-gray-700 rounded w-20"></div>
+                        <!-- Visibility -->
+                        <div class="glass-card p-5 rounded-2xl flex flex-col justify-between h-32">
+                            <div class="flex justify-between items-start">
+                                <span class="text-gray-400 text-xs font-bold uppercase">Visibility</span>
+                                <i data-lucide="eye" class="w-5 h-5 text-emerald-400"></i>
+                            </div>
+                            <div>
+                                <div class="text-2xl font-bold"><span id="vis-val">--</span> <span class="text-sm font-normal text-gray-400">km</span></div>
+                                <div class="text-xs text-gray-400 mt-1" id="vis-desc">Normal</div>
+                            </div>
+                        </div>
+
+                        <!-- AQI -->
+                        <div class="glass-card p-5 rounded-2xl flex flex-col justify-between h-32">
+                            <div class="flex justify-between items-start">
+                                <span class="text-gray-400 text-xs font-bold uppercase" title="Simulated Data">Air Quality*</span>
+                                <i data-lucide="wind" class="w-5 h-5 text-teal-400"></i>
+                            </div>
+                            <div>
+                                <div class="text-2xl font-bold" id="aqi-val">--</div>
+                                <div class="text-xs text-gray-400 mt-1 font-medium" id="aqi-status">Good</div>
+                                <div id="aqi-note" class="text-xs text-gray-500 mt-1">Fetching...</div>
+                            </div>
+                        </div>
+
+                        <!-- Moon Phase -->
+                        <div class="glass-card p-5 rounded-2xl flex flex-col justify-between h-32">
+                            <div class="flex justify-between items-start">
+                                <span class="text-gray-400 text-xs font-bold uppercase">Moon Phase</span>
+                                <i data-lucide="moon" class="w-5 h-5 text-purple-400"></i>
+                            </div>
+                            <div>
+                                <div class="font-semibold text-sm" id="moon-phase">Waxing Gibbous</div>
+                                <div class="text-xs text-gray-400 mt-1">Illumination: <span id="moon-illum">--</span>%</div>
+                            </div>
+                        </div>
+
+                        <!-- Pressure -->
+                        <div class="glass-card p-5 rounded-2xl flex flex-col justify-between h-32">
+                            <div class="flex justify-between items-start">
+                                <span class="text-gray-400 text-xs font-bold uppercase">Pressure</span>
+                                <i data-lucide="gauge" class="w-5 h-5 text-red-400"></i>
+                            </div>
+                            <div>
+                                <div class="text-2xl font-bold"><span id="pressure-val">--</span> <span class="text-sm font-normal text-gray-400">hPa</span></div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="lg:col-span-2 flex flex-col gap-6">
-
-                    <div>
-                        <h3 class="text-xl font-bold text-white mb-4">Hourly Forecast</h3>
-                        <div class="glass-card rounded-3xl p-6">
-                            <div class="flex gap-4 overflow-x-auto pb-2 scrollbar-thin" id="hourly-forecast">
-                                <div class="flex gap-4">
-                                    <div class="flex flex-col items-center justify-center p-4 bg-white/5 rounded-xl min-w-[100px] animate-pulse">
-                                        <div class="h-3 bg-gray-700 rounded w-12 mb-2"></div>
-                                        <div class="h-10 w-10 bg-gray-700 rounded-full my-2"></div>
-                                        <div class="h-5 bg-gray-700 rounded w-10"></div>
+                <!-- Map Section -->
+                <div class="glass-card rounded-3xl p-1 h-64 md:h-80 relative z-0">
+                    <div id="map" class="w-full h-full rounded-2xl z-0"></div>
+                    <div class="absolute top-4 right-4 z-[400] bg-gray-900/80 backdrop-blur px-3 py-1 rounded-lg text-xs font-mono border border-gray-700 flex items-center gap-2">
+                                        <span class="whitespace-nowrap">Interactive Map</span>
+                                        <button id="aqi-toggle-btn" class="ml-2 px-2 py-1 rounded text-xs bg-white/5 hover:bg-white/10 transition-colors">AQI: On</button>
                                     </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div>
-                        <h3 class="text-xl font-bold text-white mb-4">Today's Highlights</h3>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-
-                            <div class="glass-card p-5 rounded-2xl highlight-blue">
-                                <div class="text-gray-400 text-sm mb-2">UV Index</div>
-                                <div class="flex justify-between items-end">
-                                    <span id="uv-val" class="text-3xl font-semibold">--</span>
-                                    <i data-lucide="sun" class="w-8 h-8 text-yellow-400 mb-1"></i>
-                                </div>
-                                <div class="w-full bg-gray-700 h-2 rounded-full mt-3">
-                                    <div id="uv-bar" class="bg-blue-500 h-2 rounded-full" style="width: 0%"></div>
-                                </div>
-                            </div>
-
-                            <div class="glass-card p-5 rounded-2xl">
-                                <div class="text-gray-400 text-sm mb-2">Wind Status</div>
-                                <div class="flex justify-between items-end">
-                                    <div>
-                                        <span id="wind-val" class="text-3xl font-semibold">--</span>
-                                        <span class="text-sm text-gray-400">km/h</span>
-                                    </div>
-                                    <i data-lucide="wind" class="w-8 h-8 text-blue-300 mb-1"></i>
-                                </div>
-                                <div id="wind-dir" class="text-sm text-gray-400 mt-2">Direction: --</div>
-                            </div>
-
-                            <div class="glass-card p-5 rounded-2xl highlight-yellow">
-                                <div class="text-gray-400 text-sm mb-2">Sunrise & Sunset</div>
-                                <div class="flex flex-col gap-3 mt-1">
-                                    <div class="flex items-center gap-3">
-                                        <div class="p-1.5 bg-yellow-500/20 rounded-full sunrise-glow">
-                                            <i data-lucide="sunrise" class="w-5 h-5 text-yellow-400"></i>
-                                        </div>
-                                        <div>
-                                            <div class="text-xs text-gray-400">Sunrise</div>
-                                            <div id="sunrise-val" class="font-semibold">--:--</div>
-                                        </div>
-                                    </div>
-                                    <div class="flex items-center gap-3">
-                                        <div class="p-1.5 bg-orange-500/20 rounded-full sunset-glow">
-                                            <i data-lucide="sunset" class="w-5 h-5 text-orange-400"></i>
-                                        </div>
-                                        <div>
-                                            <div class="text-xs text-gray-400">Sunset</div>
-                                            <div id="sunset-val" class="font-semibold">--:--</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="glass-card p-5 rounded-2xl">
-                                <div class="text-gray-400 text-sm mb-2">Humidity</div>
-                                <div class="flex justify-between items-end">
-                                    <div>
-                                        <span id="humidity-val" class="text-3xl font-semibold">--</span>
-                                        <span class="text-sm text-gray-400">%</span>
-                                    </div>
-                                    <i data-lucide="droplets" class="w-8 h-8 text-blue-400 mb-1"></i>
-                                </div>
-                                <div id="humidity-text" class="text-xs text-gray-400 mt-2">Dew point is --°</div>
-                            </div>
-
-                            <div class="glass-card p-5 rounded-2xl">
-                                <div class="text-gray-400 text-sm mb-2">Visibility</div>
-                                <div class="flex justify-between items-end">
-                                    <div>
-                                        <span id="visibility-val" class="text-3xl font-semibold">--</span>
-                                        <span class="text-sm text-gray-400">km</span>
-                                    </div>
-                                    <i data-lucide="eye" class="w-8 h-8 text-emerald-400 mb-1"></i>
-                                </div>
-                                <div id="visibility-text" class="text-xs text-gray-400 mt-2">Average visibility</div>
-                            </div>
-
-                            <div class="glass-card p-5 rounded-2xl">
-                                <div class="text-gray-400 text-sm mb-2">Feels Like</div>
-                                <div class="flex justify-between items-end">
-                                    <div>
-                                        <span id="feels-val" class="text-3xl font-semibold">--</span>
-                                        <span class="text-sm text-gray-400">°</span>
-                                    </div>
-                                    <i data-lucide="thermometer" class="w-8 h-8 text-red-400 mb-1"></i>
-                                </div>
-                                <div id="feels-text" class="text-xs text-gray-400 mt-2">Actual is --°</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="flex-1 min-h-[300px] glass-card rounded-3xl p-2 relative overflow-hidden">
-                        <div id="map-container" class="w-full h-full rounded-2xl z-0"></div>
-
-                        <div class="absolute top-6 left-6 z-[500] glass-card px-4 py-2 rounded-xl">
-                            <span class="text-xs font-semibold uppercase tracking-wider text-gray-400">Location
-                                Map</span>
-                        </div>
-
-                        <div
-                            class="absolute bottom-6 right-6 z-[500] glass-card px-3 py-2 rounded-lg flex flex-col gap-2">
-                            <div class="flex items-center gap-2 text-xs">
-                                <span class="w-2 h-2 rounded-full bg-blue-500"></span>
-                                <span>Current</span>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
-    </main>
+    </div>
 
-    <div id="country-modal"
-        class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] hidden items-center justify-center p-4 opacity-0 transition-opacity duration-300">
-        <div class="glass-card w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl p-0 relative transform scale-95 transition-transform duration-300"
-            id="modal-content">
-
-            <button id="close-modal"
-                class="absolute top-4 right-4 p-2 rounded-full bg-black/20 hover:bg-black/40 transition-colors z-10">
-                <i data-lucide="x" class="w-6 h-6 text-white"></i>
-            </button>
-
-            <div class="relative h-48 bg-gray-800 overflow-hidden">
-                <img id="country-flag-bg" src="" alt="Flag Background"
-                    class="absolute inset-0 w-full h-full object-cover opacity-30 blur-sm">
-                <div class="absolute inset-0 bg-gradient-to-t from-gray-900 to-transparent"></div>
-                <div class="absolute bottom-6 left-8 flex items-end gap-6">
-                    <img id="country-flag" src="" alt="Flag"
-                        class="w-24 h-auto rounded shadow-2xl border-2 border-gray-700">
-                    <div>
-                        <h2 id="modal-country-name" class="text-4xl font-bold text-white mb-1">Country Name</h2>
-                        <p id="modal-region" class="text-gray-400 text-lg">Region</p>
-                    </div>
-                </div>
+    <!-- VIEW: Favorites -->
+    <div id="view-favorites" class="view-section flex-1 overflow-y-auto p-6">
+        <div class="max-w-5xl mx-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-3xl font-bold">Saved Locations</h2>
+                <button id="clear-favorites-btn" class="text-red-400 text-sm hover:underline">Clear All</button>
             </div>
+            <div id="favorites-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            </div>
+            <div id="no-favorites" class="hidden text-center py-20">
+                <i data-lucide="star-off" class="w-16 h-16 text-gray-600 mx-auto mb-4"></i>
+                <p class="text-gray-400">No favorite cities yet. Click the star on the dashboard!</p>
+            </div>
+        </div>
+    </div>
 
-            <div class="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div class="space-y-6">
-                    <div class="flex items-center gap-4 p-4 bg-white/5 rounded-2xl">
-                        <div class="p-3 bg-blue-500/20 rounded-xl text-blue-400">
-                            <i data-lucide="users" class="w-6 h-6"></i>
-                        </div>
-                        <div>
-                            <p class="text-sm text-gray-400">Population</p>
-                            <p id="modal-population" class="text-xl font-semibold">--</p>
-                        </div>
+    <!-- VIEW: Compare -->
+    <div id="view-compare" class="view-section flex-1 overflow-y-auto p-6">
+        <div class="max-w-6xl mx-auto h-full flex flex-col">
+            <h2 class="text-3xl font-bold mb-6">Compare Weather</h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1">
+                <!-- City 1 -->
+                <div class="flex flex-col gap-4">
+                    <div class="relative">
+                        <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4"></i>
+                        <input type="text" id="compare-input-1" placeholder="Enter first city..."
+                               class="w-full bg-gray-800 border border-gray-700 rounded-xl py-3 pl-10 text-white focus:border-blue-500 focus:outline-none">
                     </div>
-                    <div class="flex items-center gap-4 p-4 bg-white/5 rounded-2xl">
-                        <div class="p-3 bg-green-500/20 rounded-xl text-green-400">
-                            <i data-lucide="landmark" class="w-6 h-6"></i>
-                        </div>
-                        <div>
-                            <p class="text-sm text-gray-400">Capital</p>
-                            <p id="modal-capital" class="text-xl font-semibold">--</p>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-4 p-4 bg-white/5 rounded-2xl">
-                        <div class="p-3 bg-yellow-500/20 rounded-xl text-yellow-400">
-                            <i data-lucide="coins" class="w-6 h-6"></i>
-                        </div>
-                        <div>
-                            <p class="text-sm text-gray-400">Currency</p>
-                            <p id="modal-currency" class="text-xl font-semibold">--</p>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-4 p-4 bg-white/5 rounded-2xl">
-                        <div class="p-3 bg-purple-500/20 rounded-xl text-purple-400">
-                            <i data-lucide="globe-2" class="w-6 h-6"></i>
-                        </div>
-                        <div>
-                            <p class="text-sm text-gray-400">Subregion</p>
-                            <p id="modal-subregion" class="text-xl font-semibold">--</p>
-                        </div>
+                    <div id="compare-card-1" class="glass-card rounded-2xl p-6 flex-1 flex items-center justify-center text-gray-500">
+                        Search a city to display data
                     </div>
                 </div>
 
-                <div class="h-full min-h-[300px] rounded-2xl overflow-hidden relative border border-gray-700">
-                    <div id="country-map-container" class="w-full h-full absolute inset-0 z-0"></div>
-                    <div
-                        class="absolute top-4 left-4 z-[500] bg-gray-900/80 backdrop-blur px-3 py-1 rounded-lg text-xs text-white border border-gray-700">
-                        Country View
+                <!-- City 2 -->
+                <div class="flex flex-col gap-4">
+                    <div class="relative">
+                        <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4"></i>
+                        <input type="text" id="compare-input-2" placeholder="Enter second city..."
+                               class="w-full bg-gray-800 border border-gray-700 rounded-xl py-3 pl-10 text-white focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <div id="compare-card-2" class="glass-card rounded-2xl p-6 flex-1 flex items-center justify-center text-gray-500">
+                        Search a city to display data
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    <script src="app.js"></script>
-</body>
 
+</main>
+
+<!-- Country Modal -->
+<div id="country-modal" class="fixed inset-0 z-[60] flex hidden items-center justify-center bg-black/80 backdrop-blur-sm p-4 opacity-0 transition-opacity duration-300">
+    <div id="modal-content" class="glass-card w-full max-w-2xl rounded-3xl max-h-[90vh] overflow-auto transform scale-95 transition-transform duration-300">
+        <div class="relative h-40 bg-gray-800">
+            <img id="modal-flag-bg" class="absolute w-full h-full object-cover opacity-30" src="" alt="">
+            <div class="absolute inset-0 bg-gradient-to-t from-gray-900 to-transparent"></div>
+            <button id="close-modal" class="absolute top-4 right-4 p-2 bg-black/30 rounded-full hover:bg-black/50 text-white">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+            <div class="absolute bottom-6 left-6 flex items-end gap-4">
+                <img id="modal-flag" class="w-20 rounded-md shadow-lg border border-gray-600" src="" alt="">
+                <div>
+                    <h2 id="modal-name" class="text-3xl font-bold text-white leading-none">Country</h2>
+                    <p id="modal-region" class="text-gray-400 text-sm mt-1">Region</p>
+                </div>
+            </div>
+        </div>
+        <div class="p-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-white/5 p-4 rounded-xl">
+                <div class="text-gray-400 text-xs uppercase">Capital</div>
+                <div id="modal-capital" class="font-semibold text-lg truncate">--</div>
+            </div>
+            <div class="bg-white/5 p-4 rounded-xl">
+                <div class="text-gray-400 text-xs uppercase">Population</div>
+                <div id="modal-pop" class="font-semibold text-lg truncate">--</div>
+            </div>
+            <div class="bg-white/5 p-4 rounded-xl">
+                <div class="text-gray-400 text-xs uppercase">Currency</div>
+                <div id="modal-curr" class="font-semibold text-lg truncate">--</div>
+            </div>
+            <div class="bg-white/5 p-4 rounded-xl">
+                <div class="text-gray-400 text-xs uppercase">Language</div>
+                <div id="modal-lang" class="font-semibold text-lg truncate">--</div>
+            </div>
+
+            <!-- Expanded Metadata -->
+            <div class="bg-white/5 p-4 rounded-xl">
+                <div class="text-gray-400 text-xs uppercase">Area</div>
+                <div id="modal-area" class="font-semibold text-lg truncate">--</div>
+            </div>
+            <div class="bg-white/5 p-4 rounded-xl">
+                <div class="text-gray-400 text-xs uppercase">Timezone</div>
+                <div id="modal-timezone" class="font-semibold text-lg truncate">--</div>
+            </div>
+            <div class="bg-white/5 p-4 rounded-xl">
+                <div class="text-gray-400 text-xs uppercase">Borders</div>
+                <div id="modal-borders" class="font-semibold text-lg truncate">--</div>
+            </div>
+            <div class="bg-white/5 p-4 rounded-xl">
+                <div class="text-gray-400 text-xs uppercase">Demonym</div>
+                <div id="modal-demonym" class="font-semibold text-lg truncate">--</div>
+            </div>
+        </div>
+        <div id="country-map-mini" class="h-64 w-full border-t border-white/10"></div>
+    </div>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="app.js"></script>
+</body>
 </html>
